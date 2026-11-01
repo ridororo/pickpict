@@ -14,6 +14,28 @@ document.addEventListener("DOMContentLoaded", () => {
   setupPinInputs();
   checkUrlParamsForCode();
   setupKeyboardShortcuts();
+
+  // Pasang listener langsung pada form & tombol PIN
+  const pinForm = document.getElementById("pinForm");
+  if (pinForm) {
+    pinForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitPinCode();
+    });
+  }
+
+  const btnSubmitPin = document.getElementById("btnSubmitPin");
+  if (btnSubmitPin) {
+    btnSubmitPin.addEventListener("click", (e) => {
+      e.preventDefault();
+      submitPinCode();
+    });
+  }
+
+  const btnAdmin = document.getElementById("btnOpenAdminModal");
+  if (btnAdmin) {
+    btnAdmin.addEventListener("click", openAdminLoginModal);
+  }
 });
 
 // ==========================================
@@ -648,32 +670,6 @@ async function downloadSelectedAsZip() {
   }
 }
 
-    // Buat trigger link unduh
-    const downloadUrl = URL.createObjectURL(zipContent);
-    const link = document.createElement("a");
-    link.href = downloadUrl;
-    link.download = zipFilename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000);
-
-    progressBar.style.width = "100%";
-    progressPercent.textContent = "100%";
-    progressMessage.textContent = "Berhasil! File ZIP siap diunduh";
-
-    setTimeout(() => {
-      progressModal.classList.add("hidden");
-      showToast("File .ZIP berhasil diunduh!", "success");
-    }, 1200);
-
-  } catch (err) {
-    console.error("Gagal membuat zip:", err);
-    progressModal.classList.add("hidden");
-    showToast("Terjadi kendala saat membuat file ZIP. Silakan unduh foto satu-persatu.", "error");
-  }
-}
-
 // Fallback jika gambar eksternal sama sekali tidak bisa difetch
 async function createFallbackImageBlob(text) {
   const canvas = document.createElement("canvas");
@@ -934,3 +930,30 @@ function setupKeyboardShortcuts() {
     }
   });
 }
+
+// ==========================================
+// 8. EKSPOS FUNGSI KE WINDOW (GLOBAL SCOPE)
+// ==========================================
+window.submitPinCode = submitPinCode;
+window.quickFillPin = quickFillPin;
+window.getEnteredPin = getEnteredPin;
+window.showPinError = showPinError;
+window.hidePinError = hidePinError;
+window.toggleSelectAll = toggleSelectAll;
+window.togglePhotoSelect = togglePhotoSelect;
+window.openLightbox = openLightbox;
+window.closeLightbox = closeLightbox;
+window.prevLightboxImage = prevLightboxImage;
+window.nextLightboxImage = nextLightboxImage;
+window.toggleLightboxSelect = toggleLightboxSelect;
+window.downloadSinglePhoto = downloadSinglePhoto;
+window.downloadSelectedAsZip = downloadSelectedAsZip;
+window.submitClientSelection = submitClientSelection;
+window.closeSubmitSuccessModal = closeSubmitSuccessModal;
+window.openAdminLoginModal = openAdminLoginModal;
+window.closeAdminLoginModal = closeAdminLoginModal;
+window.switchModalAuthTab = switchModalAuthTab;
+window.processAdminLogin = processAdminLogin;
+window.processAdminRegister = processAdminRegister;
+window.exitGallery = exitGallery;
+window.loadAndDisplayGallery = loadAndDisplayGallery;

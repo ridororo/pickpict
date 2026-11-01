@@ -757,3 +757,24 @@ function fallbackCopyText(text, successMessage) {
   }
   textArea.remove();
 }
+
+// ==========================================
+// 10. EKSPOS FUNGSI ADMIN KE WINDOW (GLOBAL SCOPE)
+// ==========================================
+window.switchAuthTab = switchAuthTab;
+window.handleAdminLogin = handleAdminLogin;
+window.handleAdminRegister = handleAdminRegister;
+window.handleAdminLogout = handleAdminLogout;
+window.handleCreateSession = handleCreateSession;
+window.showCodeSuccessModal = showCodeSuccessModal;
+window.closeCodeSuccessModal = closeCodeSuccessModal;
+window.copyGeneratedCode = copyGeneratedCode;
+window.copyWhatsappInviteMessage = copyWhatsappInviteMessage;
+window.closeSelectionDetailModal = closeSelectionDetailModal;
+window.copyFilenamesForLightroom = copyFilenamesForLightroom;
+window.downloadSelectionAsTxt = downloadSelectionAsTxt;
+window.openSelectionDetailModal = openSelectionDetailModal;
+window.quickCopyWaForSession = quickCopyWaForSession;
+window.confirmDeleteSession = confirmDeleteSession;
+window.copySessionCode = copySessionCode;
+window.filterSessionsList = filterSessionsList;
