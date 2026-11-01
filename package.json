@@ -1,0 +1,25 @@
+{
+  "name": "pickpict",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "PickPict - Platform Galeri & Pemilihan Foto Klien Berbasis Google Drive dengan Tema Soft Coquette",
+  "main": "index.html",
+  "scripts": {
+    "start": "serve .",
+    "dev": "serve ."
+  },
+  "keywords": [
+    "photobox",
+    "photo-selection",
+    "google-drive",
+    "gallery",
+    "coquette",
+    "photographer-client"
+  ],
+  "author": "PickPict Studio",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}

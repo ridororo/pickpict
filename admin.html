@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Admin Studio - PickPict</title>
+  <meta name="description" content="Dashboard Pengelola Galeri & Pemilihan Foto Pelanggan PickPict Studio." />
+
+  <!-- Google Fonts: Plus Jakarta Sans & Playfair Display -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            rosewood: '#3F1D2B',
+            mauve: '#9D5C75',
+            blush: '#FFF5F8',
+            petal: '#FDF0F4',
+            coquette: {
+              50: '#FFF5F8',
+              100: '#FFE8F0',
+              200: '#FED2E2',
+              300: '#FBAECB',
+              400: '#F472B6',
+              500: '#EC4899',
+              600: '#DB2777',
+              700: '#BE185D',
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            serif: ['"Playfair Display"', 'serif'],
+          },
+          animation: {
+            'blob': 'blob 10s infinite',
+            'float': 'float 4s ease-in-out infinite',
+          },
+          keyframes: {
+            blob: {
+              '0%': { transform: 'translate(0px, 0px) scale(1)' },
+              '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+              '66%': { transform: 'translate(-20px, 20px) scale(0.95)' },
+              '100%': { transform: 'translate(0px, 0px) scale(1)' },
+            },
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-6px)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <!-- Firebase App & Firestore SDK (v10 compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #FFF5F8;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #FBAECB;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #EC4899;
+    }
+
+    .glass-coquette {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+  </style>
+</head>
+
+<body class="bg-[#FFF5F8] text-rosewood font-sans min-h-screen relative overflow-x-hidden selection:bg-pink-200 selection:text-pink-900 flex flex-col justify-between">
+
+  <!-- BACKGROUND DEKORATIF BLOB PASTEL COQUETTE -->
+  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <div class="absolute -top-32 -left-32 w-96 h-96 bg-pink-200/50 rounded-full blur-3xl filter animate-blob"></div>
+    <div class="absolute top-1/3 -right-28 w-96 h-96 bg-rose-200/40 rounded-full blur-3xl filter animate-blob [animation-delay:2s]"></div>
+    <div class="absolute -bottom-32 left-1/4 w-[32rem] h-[32rem] bg-pink-300/30 rounded-full blur-3xl filter animate-blob [animation-delay:4s]"></div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- VIEW 1: FORM LOGIN ADMIN (JIKA BELUM LOGIN) -->
+  <!-- ========================================== -->
+  <div id="adminLoginScreen" class="relative z-10 flex-1 flex items-center justify-center p-4">
+    <div class="glass-coquette border border-pink-200/90 rounded-3xl p-8 sm:p-10 max-w-md w-full shadow-2xl shadow-pink-200/60 text-center relative overflow-hidden">
+      
+      <!-- Ornamen Pita Sudut -->
+      <div class="w-16 h-16 mx-auto mb-4 rounded-3xl bg-gradient-to-tr from-pink-500 via-rose-400 to-pink-300 flex items-center justify-center text-white shadow-lg shadow-pink-300/50 animate-float">
+        <i data-lucide="shield-check" class="w-8 h-8"></i>
+      </div>
+
+      <h1 class="font-serif text-3xl font-bold text-rosewood mb-1">
+        Dashboard Admin PickPict
+      </h1>
+      <p class="text-mauve text-sm mb-6">
+        Silakan masuk untuk mengelola link Google Drive dan kode akses pelanggan studio.
+      </p>
+
+      <form id="standaloneLoginForm" onsubmit="event.preventDefault(); handleAdminLogin();" class="space-y-4 text-left">
+        <div>
+          <label class="block text-xs font-bold text-rosewood mb-1.5">Username Admin</label>
+          <div class="relative">
+            <i data-lucide="user" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3.5"></i>
+            <input type="text" id="loginUsername" value="admin" required class="w-full pl-10 pr-4 py-3 rounded-2xl border border-pink-200 bg-white text-sm text-rosewood focus:border-pink-500 focus:ring-4 focus:ring-pink-200/40 focus:outline-none transition-all shadow-xs" placeholder="Masukkan username admin" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-rosewood mb-1.5">Password Admin</label>
+          <div class="relative">
+            <i data-lucide="lock" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3.5"></i>
+            <input type="password" id="loginPassword" value="admin123" required class="w-full pl-10 pr-4 py-3 rounded-2xl border border-pink-200 bg-white text-sm text-rosewood focus:border-pink-500 focus:ring-4 focus:ring-pink-200/40 focus:outline-none transition-all shadow-xs" placeholder="Masukkan password" />
+          </div>
+        </div>
+
+        <!-- Info Demo Kredensial -->
+        <div class="p-3 rounded-2xl bg-rose-50 border border-pink-200 text-xs text-mauve flex items-center gap-2.5">
+          <div>
+            <span class="font-bold text-rosewood">Akun Demo Studio:</span> Username: <strong class="text-pink-600">admin</strong> • Password: <strong class="text-pink-600">admin123</strong>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 hover:from-pink-600 hover:to-rose-600 text-white font-bold text-sm shadow-lg shadow-pink-500/30 hover:scale-[1.01] transition-all flex items-center justify-center gap-2 cursor-pointer">
+          <i data-lucide="log-in" class="w-4 h-4"></i>
+          <span>Masuk ke Dashboard</span>
+        </button>
+
+        <div class="text-center pt-2">
+          <a href="index.html" class="text-xs text-mauve hover:text-pink-600 transition-colors inline-flex items-center gap-1">
+            <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+            <span>Kembali ke Halaman Pelanggan</span>
+          </a>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- VIEW 2: DASHBOARD ADMIN UTAMA (SETELAH LOGIN) -->
+  <!-- ========================================== -->
+  <div id="adminDashboardScreen" class="hidden relative z-10 flex-1 flex flex-col">
+
+    <!-- HEADER ADMIN -->
+    <header class="border-b border-pink-200/60 glass-coquette sticky top-0 z-20">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        
+        <!-- Brand Studio Admin -->
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-pink-500 via-rose-400 to-pink-300 flex items-center justify-center text-white shadow-lg shadow-pink-300/50">
+            <i data-lucide="sparkles" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-serif font-bold text-xl sm:text-2xl text-rosewood">PickPict Studio</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-pink-100 border border-pink-200 text-[11px] font-bold text-pink-700">Admin</span>
+            </div>
+            <p class="text-[11px] text-mauve font-medium hidden sm:block">Kelola Galeri & Pemilihan Foto Google Drive</p>
+          </div>
+        </div>
+
+        <!-- Tombol Aksi Header -->
+        <div class="flex items-center gap-2 sm:gap-3">
+          <a href="index.html" class="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-white hover:bg-pink-50 border border-pink-200 text-rosewood text-xs sm:text-sm font-semibold shadow-xs transition-all">
+            <i data-lucide="external-link" class="w-4 h-4 text-pink-500"></i>
+            <span class="hidden sm:inline">Lihat Halaman Pelanggan</span>
+            <span class="sm:hidden">Web Klien</span>
+          </a>
+
+          <button onclick="handleAdminLogout()" class="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs sm:text-sm font-semibold shadow-xs transition-all">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+            <span>Keluar</span>
+          </button>
+        </div>
+
+      </div>
+    </header>
+
+    <!-- KONTEN UTAMA DASHBOARD -->
+    <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 flex-1">
+
+      <!-- STATISTIK RINGKAS -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div class="glass-coquette border border-pink-200 rounded-3xl p-5 shadow-lg shadow-pink-100/50 flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-pink-100 flex items-center justify-center text-pink-600 shrink-0">
+            <i data-lucide="folder-heart" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <p class="text-xs text-mauve font-semibold uppercase tracking-wider">Total Sesi Pelanggan</p>
+            <p id="statTotalSessions" class="text-2xl font-bold text-rosewood">0</p>
+          </div>
+        </div>
+
+        <div class="glass-coquette border border-pink-200 rounded-3xl p-5 shadow-lg shadow-pink-100/50 flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+            <i data-lucide="check-check" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <p class="text-xs text-mauve font-semibold uppercase tracking-wider">Foto Dipilih Klien</p>
+            <p id="statTotalSelectedPhotos" class="text-2xl font-bold text-rosewood">0</p>
+          </div>
+        </div>
+
+        <div class="glass-coquette border border-pink-200 rounded-3xl p-5 shadow-lg shadow-pink-100/50 flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+            <i data-lucide="clock" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <p class="text-xs text-mauve font-semibold uppercase tracking-wider">Sesi Siap Diproses</p>
+            <p id="statReadySessions" class="text-2xl font-bold text-rosewood">0</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- KARTU 1: FORM TAMBAH SESI PELANGGAN BARU -->
+      <section class="glass-coquette border border-pink-200/90 rounded-3xl p-6 sm:p-8 shadow-xl shadow-pink-200/40 relative overflow-hidden">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center text-white shadow-md shadow-pink-300/40">
+            <i data-lucide="plus-circle" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="font-serif text-2xl font-bold text-rosewood">Tambah Sesi Pelanggan Baru</h2>
+            <p class="text-mauve text-xs sm:text-sm">Buat kode akses 4 digit instan dari link folder Google Drive foto klien</p>
+          </div>
+        </div>
+
+        <form id="newSessionForm" onsubmit="event.preventDefault(); handleCreateSession();" class="space-y-5">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <!-- Input Nama Pelanggan / Sesi -->
+            <div>
+              <label class="block text-xs font-bold text-rosewood mb-1.5">
+                Nama Pelanggan / Judul Sesi <span class="text-pink-600">*</span>
+              </label>
+              <div class="relative">
+                <i data-lucide="user" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3.5"></i>
+                <input
+                  type="text"
+                  id="clientNameInput"
+                  required
+                  placeholder="Contoh: Alya - Wisuda UI 2026 atau Nabila & Bestie"
+                  class="w-full pl-10 pr-4 py-3 rounded-2xl border border-pink-200 bg-white text-sm text-rosewood focus:border-pink-500 focus:ring-4 focus:ring-pink-200/40 focus:outline-none transition-all shadow-xs"
+                />
+              </div>
+            </div>
+
+            <!-- Input Batas Maksimal Pilih Foto -->
+            <div>
+              <label class="block text-xs font-bold text-rosewood mb-1.5">
+                Batas Maksimal Pilihan Foto (Kuota)
+              </label>
+              <div class="relative">
+                <i data-lucide="layers" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3.5"></i>
+                <input
+                  type="number"
+                  id="maxSelectInput"
+                  min="0"
+                  max="500"
+                  placeholder="Contoh: 10 (Kosongkan atau ketik 0 untuk bebas)"
+                  class="w-full pl-10 pr-4 py-3 rounded-2xl border border-pink-200 bg-white text-sm text-rosewood focus:border-pink-500 focus:ring-4 focus:ring-pink-200/40 focus:outline-none transition-all shadow-xs"
+                />
+              </div>
+              <p class="text-[11px] text-mauve mt-1">Kosongkan jika klien bebas memilih berapa pun jumlah foto.</p>
+            </div>
+          </div>
+
+          <!-- Input Link Folder Google Drive -->
+          <div>
+            <label class="block text-xs font-bold text-rosewood mb-1.5">
+              Link Folder Google Drive Klien <span class="text-pink-600">*</span>
+            </label>
+            <div class="relative">
+              <i data-lucide="link" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3.5"></i>
+              <input
+                type="text"
+                id="gdriveUrlInput"
+                required
+                placeholder="https://drive.google.com/drive/folders/1wK-fO... (atau masukkan simulasi link apa pun)"
+                class="w-full pl-10 pr-4 py-3 rounded-2xl border border-pink-200 bg-white text-sm text-rosewood focus:border-pink-500 focus:ring-4 focus:ring-pink-200/40 focus:outline-none transition-all shadow-xs"
+              />
+            </div>
+            <p class="text-[11px] text-mauve mt-1 flex items-center gap-1">
+              <i data-lucide="info" class="w-3.5 h-3.5 text-pink-500"></i>
+              <span>Sistem otomatis mengekstrak Folder ID dari Google Drive.</span>
+            </p>
+          </div>
+
+          <!-- Input Catatan Tambahan (Opsional) -->
+          <div>
+            <label class="block text-xs font-bold text-rosewood mb-1.5">Catatan Paket / Sesi (Opsional)</label>
+            <input
+              type="text"
+              id="notesInput"
+              placeholder="Contoh: Paket Photobox 30 Menit - Cetak 2 Strip + Semua Softcopy"
+              class="w-full px-4 py-2.5 rounded-2xl border border-pink-200 bg-white text-sm text-rosewood focus:border-pink-500 focus:ring-4 focus:ring-pink-200/40 focus:outline-none transition-all shadow-xs"
+            />
+          </div>
+
+          <!-- Tombol Submit Buat Kode Akses -->
+          <button
+            type="submit"
+            id="btnCreateSession"
+            class="w-full sm:w-auto py-3.5 px-8 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 hover:from-pink-600 hover:to-rose-600 text-white font-bold text-sm shadow-lg shadow-pink-500/30 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <i data-lucide="sparkles" class="w-4 h-4"></i>
+            <span>Oke, Buat Kode Akses</span>
+          </button>
+        </form>
+      </section>
+
+      <!-- KARTU 2: DAFTAR SESI PELANGGAN AKTIF -->
+      <section class="glass-coquette border border-pink-200/90 rounded-3xl p-6 sm:p-8 shadow-xl shadow-pink-200/40">
+        
+        <!-- Header Tabel & Filter Search -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-pink-100 flex items-center justify-center text-pink-600">
+              <i data-lucide="users" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="font-serif text-2xl font-bold text-rosewood">Daftar Sesi Pelanggan Aktif</h3>
+              <p class="text-mauve text-xs">Pantau kode 4 digit, link drive, dan foto yang dipilih masing-masing klien</p>
+            </div>
+          </div>
+
+          <!-- Search Bar -->
+          <div class="relative w-full sm:w-72">
+            <i data-lucide="search" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3.5"></i>
+            <input
+              type="text"
+              id="searchSessionsInput"
+              oninput="filterSessionsList()"
+              placeholder="Cari nama atau 4 digit kode..."
+              class="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-pink-200 bg-white text-xs sm:text-sm text-rosewood focus:border-pink-500 focus:outline-none transition-all shadow-xs"
+            />
+          </div>
+        </div>
+
+        <!-- Wadah List Sesi -->
+        <div id="sessionsListContainer" class="space-y-4">
+          <!-- Rendered dynamically via js/admin.js -->
+        </div>
+
+        <!-- State Kosong Jika Belum Ada Sesi -->
+        <div id="emptySessionsState" class="hidden text-center py-12">
+          <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-pink-100 flex items-center justify-center text-pink-500">
+            <i data-lucide="folder-x" class="w-8 h-8"></i>
+          </div>
+          <p class="font-serif text-lg font-bold text-rosewood">Belum Ada Sesi Ditemukan</p>
+          <p class="text-mauve text-xs">Buat sesi baru menggunakan form di atas.</p>
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL 1: POP-UP KODE AKSES OTOMATIS BERHASIL -->
+  <!-- ========================================== -->
+  <div id="codeSuccessModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rosewood/50 backdrop-blur-sm hidden">
+    <div class="glass-coquette border border-pink-300 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative animate-fadeIn">
+      
+      <!-- Tombol Tutup -->
+      <button onclick="closeCodeSuccessModal()" class="absolute top-5 right-5 text-mauve hover:text-rosewood p-1.5 rounded-full hover:bg-pink-100/60 transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="w-16 h-16 mx-auto mb-3 rounded-3xl bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center text-white shadow-lg shadow-pink-300/50">
+        <i data-lucide="party-popper" class="w-8 h-8"></i>
+      </div>
+
+      <h3 class="font-serif text-2xl font-bold text-rosewood mb-1">Kode Akses Siap!</h3>
+      <p id="modalSuccessClientName" class="text-mauve text-xs sm:text-sm mb-5">Untuk Sesi: Nabila & Sahabat</p>
+
+      <!-- TAMPILAN KODE 4 DIGIT BESAR & ELEGAN -->
+      <div class="p-5 rounded-3xl bg-gradient-to-br from-pink-50 via-white to-rose-50 border-2 border-pink-300 shadow-inner mb-6">
+        <p class="text-[11px] font-bold text-mauve uppercase tracking-widest mb-1">Kode Akses Pelanggan</p>
+        <div id="modalBigCodeDisplay" class="font-mono text-5xl sm:text-6xl font-extrabold text-pink-600 tracking-[0.25em] select-all my-2">
+          1234
+        </div>
+        <p id="modalFolderIdBadge" class="text-[10px] font-mono text-mauve truncate mt-2 px-3 py-1 bg-white/80 rounded-full border border-pink-200 inline-block max-w-full">
+          ID: 1wK-fO9...
+        </p>
+      </div>
+
+      <!-- Tombol Aksi Salin & Share -->
+      <div class="space-y-2.5">
+        <button
+          onclick="copyGeneratedCode()"
+          class="w-full py-3 rounded-2xl bg-white hover:bg-pink-50 border border-pink-300 text-rosewood font-semibold text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-2"
+        >
+          <i data-lucide="copy" class="w-4 h-4 text-pink-500"></i>
+          <span>Salin Kode 4 Digit</span>
+        </button>
+
+        <button
+          onclick="copyWhatsappInviteMessage()"
+          class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 hover:from-pink-600 hover:to-rose-600 text-white font-bold text-xs sm:text-sm shadow-md shadow-pink-500/30 transition-all flex items-center justify-center gap-2"
+        >
+          <i data-lucide="message-circle" class="w-4 h-4"></i>
+          <span>Salin Pesan WhatsApp untuk Pelanggan</span>
+        </button>
+
+        <a
+          id="btnDirectTestGallery"
+          href="#"
+          target="_blank"
+          class="inline-flex items-center justify-center gap-1.5 w-full py-2.5 text-xs font-semibold text-mauve hover:text-pink-600 transition-colors"
+        >
+          <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+          <span>Buka Langsung Galeri Ini (Tab Baru)</span>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL 2: DETAIL FOTO PILIHAN PELANGGAN -->
+  <!-- ========================================== -->
+  <div id="selectionDetailModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rosewood/50 backdrop-blur-sm hidden">
+    <div class="glass-coquette border border-pink-200 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative max-h-[90vh] flex flex-col animate-fadeIn">
+      
+      <!-- Tombol Tutup -->
+      <button onclick="closeSelectionDetailModal()" class="absolute top-5 right-5 text-mauve hover:text-rosewood p-1.5 rounded-full hover:bg-pink-100/60 transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <!-- Header Modal -->
+      <div class="mb-4">
+        <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-pink-100 text-pink-700 text-xs font-bold mb-2">
+          <i data-lucide="heart" class="w-3.5 h-3.5 fill-pink-500"></i>
+          <span id="detailSelectionClientCode">Kode: 1234</span>
+        </span>
+        <h3 id="detailSelectionClientName" class="font-serif text-2xl font-bold text-rosewood">
+          Foto Pilihan: Nabila & Sahabat
+        </h3>
+        <p id="detailSelectionStats" class="text-xs text-mauve mt-1">Total: 3 foto terpilih</p>
+      </div>
+
+      <!-- Kotak Daftar File -->
+      <div class="flex-1 overflow-y-auto pr-1 my-3">
+        <div id="detailFileListContainer" class="space-y-2">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Tombol Salin Format Lightroom / Photoshop -->
+      <div class="pt-4 border-t border-pink-200/80 space-y-2.5">
+        <button
+          onclick="copyFilenamesForLightroom()"
+          class="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold text-xs sm:text-sm shadow-md shadow-pink-500/30 transition-all flex items-center justify-center gap-2"
+        >
+          <i data-lucide="copy" class="w-4 h-4"></i>
+          <span>Salin Nama File (Untuk Lightroom/Photoshop)</span>
+        </button>
+
+        <button
+          onclick="downloadSelectionAsTxt()"
+          class="w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-pink-50 border border-pink-200 text-rosewood font-semibold text-xs transition-all flex items-center justify-center gap-1.5"
+        >
+          <i data-lucide="file-text" class="w-4 h-4 text-pink-500"></i>
+          <span>Simpan Sebagai File Teks (.txt)</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="relative z-10 border-t border-pink-200/60 glass-coquette py-5 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-mauve">
+      <span>Dashboard Admin PickPict Studio • Siap Deploy ke Vercel • Simpan Otomatis Hybrid</span>
+    </div>
+  </footer>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script src="js/config.js"></script>
+  <script src="js/admin.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+    });
+  </script>
+</body>
+</html>

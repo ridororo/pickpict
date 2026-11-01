@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PickPict - Galeri & Pemilihan Foto Eksklusif</title>
+  <meta name="description" content="PickPict - Platform pemilihan foto estetik untuk pelanggan photobox dan studio foto berbasis Google Drive." />
+
+  <!-- Google Fonts: Plus Jakarta Sans & Playfair Display -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            rosewood: '#3F1D2B',
+            mauve: '#9D5C75',
+            blush: '#FFF5F8',
+            petal: '#FDF0F4',
+            coquette: {
+              50: '#FFF5F8',
+              100: '#FFE8F0',
+              200: '#FED2E2',
+              300: '#FBAECB',
+              400: '#F472B6',
+              500: '#EC4899',
+              600: '#DB2777',
+              700: '#BE185D',
+            }
+          },
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            serif: ['"Playfair Display"', 'serif'],
+          },
+          animation: {
+            'blob': 'blob 10s infinite',
+            'pulse-soft': 'pulseSoft 3s ease-in-out infinite',
+            'float': 'float 4s ease-in-out infinite',
+            'heartbeat': 'heartbeat 1.5s ease-in-out infinite',
+          },
+          keyframes: {
+            blob: {
+              '0%': { transform: 'translate(0px, 0px) scale(1)' },
+              '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+              '66%': { transform: 'translate(-20px, 20px) scale(0.95)' },
+              '100%': { transform: 'translate(0px, 0px) scale(1)' },
+            },
+            pulseSoft: {
+              '0%, 100%': { opacity: '0.6' },
+              '50%': { opacity: '0.9' },
+            },
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-8px)' },
+            },
+            heartbeat: {
+              '0%, 100%': { transform: 'scale(1)' },
+              '14%': { transform: 'scale(1.15)' },
+              '28%': { transform: 'scale(1)' },
+              '42%': { transform: 'scale(1.15)' },
+              '70%': { transform: 'scale(1)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- JSZip CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <!-- Firebase App & Firestore SDK (v10 compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    /* Custom Scrollbar Cantik */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #FFF5F8;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #FBAECB;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #EC4899;
+    }
+
+    /* Style Input Kode PIN */
+    .pin-input {
+      font-size: 2.25rem;
+      font-weight: 700;
+      text-align: center;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .pin-input:focus {
+      outline: none;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px -5px rgba(236, 72, 153, 0.35);
+    }
+
+    /* Glass Effect */
+    .glass-coquette {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    /* Shimmer Effect */
+    .shimmer-text {
+      background: linear-gradient(90deg, #3F1D2B 0%, #EC4899 50%, #3F1D2B 100%);
+      background-size: 200% auto;
+      color: transparent;
+      -webkit-background-clip: text;
+      background-clip: text;
+      animation: shine 6s linear infinite;
+    }
+    @keyframes shine {
+      to {
+        background-position: 200% center;
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-[#FFF5F8] text-rosewood font-sans min-h-screen relative overflow-x-hidden selection:bg-pink-200 selection:text-pink-900 flex flex-col justify-between">
+
+  <!-- BACKGROUND DEKORATIF BLOB GRADASI PASTEL COQUETTE -->
+  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <div class="absolute -top-32 -left-32 w-96 h-96 bg-pink-200/50 rounded-full blur-3xl filter animate-blob"></div>
+    <div class="absolute top-1/4 -right-28 w-96 h-96 bg-rose-200/40 rounded-full blur-3xl filter animate-blob [animation-delay:2s]"></div>
+    <div class="absolute -bottom-32 left-1/3 w-[30rem] h-[30rem] bg-pink-300/30 rounded-full blur-3xl filter animate-blob [animation-delay:4s]"></div>
+  </div>
+
+  <!-- HEADER UTAMA -->
+  <header class="relative z-20 border-b border-pink-200/60 glass-coquette sticky top-0 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <!-- Logo PickPict -->
+      <a href="index.html" class="flex items-center gap-3 group cursor-pointer">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-pink-500 via-rose-400 to-pink-300 flex items-center justify-center shadow-lg shadow-pink-300/50 group-hover:scale-105 transition-transform">
+          <i data-lucide="camera" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <span class="font-serif font-bold text-2xl tracking-tight text-rosewood group-hover:text-pink-600 transition-colors flex items-center gap-1.5">
+            PickPict
+          </span>
+          <p class="text-[11px] font-medium text-mauve tracking-wider uppercase">Galeri & Kurasi Foto Eksklusif</p>
+        </div>
+      </a>
+
+      <!-- Menu Header & Tombol Akses Admin -->
+      <div class="flex items-center gap-3">
+        <!-- Status Indikator Studio -->
+        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-pink-100/70 border border-pink-200 text-xs font-medium text-mauve">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>Studio Aktif</span>
+        </div>
+
+        <!-- Tombol Akses Admin Kanan Atas -->
+        <button id="btnOpenAdminModal" class="flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 hover:bg-pink-50 border border-pink-200 text-rosewood hover:text-pink-600 text-sm font-semibold shadow-sm hover:shadow-md transition-all">
+          <i data-lucide="lock" class="w-4 h-4 text-pink-500"></i>
+          <span>Akses Admin</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- KONTEN UTAMA: DUA VIEW (PIN SCREEN & GALERI FOTO) -->
+  <main class="relative z-10 flex-1 flex flex-col justify-center max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- ========================================== -->
+    <!-- VIEW 1: LAYAR INPUT KODE 4 DIGIT PELANGGAN -->
+    <!-- ========================================== -->
+    <div id="pinScreen" class="w-full max-w-md mx-auto my-auto py-6">
+      <div class="glass-coquette border border-pink-200/90 rounded-3xl p-8 sm:p-10 shadow-2xl shadow-pink-200/60 relative overflow-hidden text-center">
+        <!-- Hiasan Pita Sudut -->
+        <div class="absolute -top-6 -right-6 w-20 h-20 bg-gradient-to-br from-pink-400/20 to-rose-300/30 rounded-full blur-xl pointer-events-none"></div>
+
+        <!-- Ikon Hati Sparkle Atas -->
+        <div class="w-16 h-16 mx-auto mb-5 rounded-3xl bg-gradient-to-tr from-pink-100 to-rose-50 border border-pink-200 flex items-center justify-center shadow-inner animate-float">
+          <i data-lucide="sparkles" class="w-8 h-8 text-pink-500 animate-pulse-soft"></i>
+        </div>
+
+        <!-- Judul & Subjudul -->
+        <h1 class="font-serif text-3xl font-bold text-rosewood mb-2 tracking-tight">
+          Masukkan Kode Foto Kamu
+        </h1>
+        <p class="text-mauve text-sm leading-relaxed mb-8">
+          Ketik 4 angka kode unik yang diberikan oleh admin studio untuk membuka galeri foto.
+        </p>
+
+        <!-- FORM 4 KOTAK INPUT PIN -->
+        <form id="pinForm" onsubmit="event.preventDefault(); submitPinCode();" class="space-y-6">
+          <div class="flex justify-center items-center gap-3 sm:gap-4" id="pinInputsContainer">
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="pin-input w-14 h-16 sm:w-16 sm:h-20 rounded-2xl bg-white border-2 border-pink-200 text-rosewood focus:border-pink-500 text-2xl font-bold shadow-sm" data-index="0" autofocus />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="pin-input w-14 h-16 sm:w-16 sm:h-20 rounded-2xl bg-white border-2 border-pink-200 text-rosewood focus:border-pink-500 text-2xl font-bold shadow-sm" data-index="1" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="pin-input w-14 h-16 sm:w-16 sm:h-20 rounded-2xl bg-white border-2 border-pink-200 text-rosewood focus:border-pink-500 text-2xl font-bold shadow-sm" data-index="2" />
+            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="pin-input w-14 h-16 sm:w-16 sm:h-20 rounded-2xl bg-white border-2 border-pink-200 text-rosewood focus:border-pink-500 text-2xl font-bold shadow-sm" data-index="3" />
+          </div>
+
+          <!-- Pesan Error PIN (Jika Salah) -->
+          <p id="pinErrorMessage" class="hidden text-rose-600 text-xs font-semibold bg-rose-50 border border-rose-200 rounded-xl py-2 px-3 flex items-center justify-center gap-2">
+            <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+            <span id="pinErrorText">Kode foto tidak ditemukan. Silakan cek kembali atau hubungi admin.</span>
+          </p>
+
+          <!-- Tombol Submit Buka Galeri -->
+          <button type="button" id="btnSubmitPin" onclick="submitPinCode()" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-pink-600 hover:from-pink-600 hover:via-rose-600 hover:to-pink-700 text-white font-semibold shadow-lg shadow-pink-500/30 hover:shadow-pink-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-base cursor-pointer">
+            <span>Buka Galeri Foto</span>
+            <i data-lucide="arrow-right" class="w-5 h-5"></i>
+          </button>
+        </form>
+
+        <!-- BADGE BANTUAN MODE DEMO DENGAN TOMBOL CEPAT -->
+        <div class="mt-8 pt-6 border-t border-pink-200/70">
+          <div class="p-3.5 rounded-2xl bg-rose-50/80 border border-pink-200/80 text-left">
+            <div class="flex items-start gap-2.5">
+              <div class="text-xs text-mauve w-full">
+                <p class="font-bold text-rosewood mb-1">Mode Cepat:</p>
+                <p class="mb-2">Gunakan kode untuk langsung membuka galeri:</p>
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" onclick="quickFillPin('1234')" class="px-2.5 py-1 rounded-lg bg-white border border-pink-300 text-pink-600 hover:bg-pink-50 font-semibold shadow-xs transition-colors flex items-center gap-1">
+                    <span>Kode: <strong>1234</strong> (Nabila)</span>
+                  </button>
+                  <button type="button" onclick="quickFillPin('9999')" class="px-2.5 py-1 rounded-lg bg-white border border-pink-300 text-pink-600 hover:bg-pink-50 font-semibold shadow-xs transition-colors flex items-center gap-1">
+                    <span>Kode: <strong>9999</strong> (Admin)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VIEW 2: GALERI FOTO PELANGGAN INTERAKTIF -->
+    <!-- ========================================== -->
+    <div id="galleryScreen" class="hidden w-full space-y-8 animate-fadeIn">
+
+      <!-- HEADER GALERI & INFO SESI -->
+      <div class="glass-coquette border border-pink-200/90 rounded-3xl p-6 sm:p-8 shadow-xl shadow-pink-200/40 relative">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <!-- Info Pelanggan -->
+          <div>
+            <div class="flex flex-wrap items-center gap-3 mb-2">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-100 border border-pink-200 text-xs font-semibold text-pink-700">
+                <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                <span id="sessionStatusBadge">Terhubung ke Google Drive</span>
+              </span>
+              <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white border border-pink-200 text-xs font-medium text-mauve">
+                <i data-lucide="key" class="w-3.5 h-3.5 text-pink-500"></i>
+                <span>Kode: <strong id="currentClientCode" class="text-rosewood">1234</strong></span>
+              </span>
+            </div>
+            <h2 id="clientGreeting" class="font-serif text-3xl sm:text-4xl font-bold text-rosewood">
+              Halo, Nabila & Sahabat
+            </h2>
+            <p id="sessionNotes" class="text-mauve text-sm mt-1">
+              Photobox Studio - Silakan pilih foto terbaikmu.
+            </p>
+          </div>
+
+          <!-- Counter Pilihan & Aksi Cepat Header -->
+          <div class="flex flex-wrap items-center gap-3">
+            <!-- Counter Kuota Pilihan -->
+            <div id="quotaContainer" class="px-5 py-3 rounded-2xl bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 shadow-sm flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-pink-500/10 flex items-center justify-center text-pink-500">
+                <i data-lucide="heart" class="w-5 h-5 fill-pink-500 text-pink-500 animate-heartbeat"></i>
+              </div>
+              <div>
+                <p class="text-[11px] font-semibold text-mauve uppercase tracking-wider">Kuota Foto</p>
+                <p id="selectionCounterText" class="text-lg font-bold text-rosewood">
+                  Terpilih: <span id="selectedCountSpan" class="text-pink-600">0</span> / <span id="maxQuotaSpan">10</span> Foto
+                </p>
+              </div>
+            </div>
+
+            <!-- Tombol Pilih Semua -->
+            <button id="btnSelectAll" onclick="toggleSelectAll()" class="px-4 py-3 rounded-2xl bg-white hover:bg-pink-50 border border-pink-200 text-rosewood text-sm font-semibold shadow-sm transition-all flex items-center gap-2">
+              <i data-lucide="check-square" class="w-4 h-4 text-pink-500"></i>
+              <span id="selectAllBtnText">Pilih Semua</span>
+            </button>
+
+            <!-- Tombol Keluar / Ganti Kode -->
+            <button onclick="exitGallery()" class="px-4 py-3 rounded-2xl bg-white hover:bg-rose-50 border border-pink-200 text-mauve hover:text-rose-700 text-sm font-semibold shadow-sm transition-all flex items-center gap-2">
+              <i data-lucide="log-out" class="w-4 h-4"></i>
+              <span>Ganti Kode</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- GRID FOTO PELANGGAN -->
+      <div id="photoGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <!-- Rendered dynamically by js/client.js -->
+      </div>
+
+      <!-- STATE KOSONG (JIKA TIDAK ADA FOTO) -->
+      <div id="emptyPhotosState" class="hidden glass-coquette rounded-3xl p-12 text-center border border-pink-200 max-w-lg mx-auto">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-pink-100 flex items-center justify-center text-pink-500">
+          <i data-lucide="image-off" class="w-8 h-8"></i>
+        </div>
+        <h3 class="font-serif text-xl font-bold text-rosewood mb-1">Belum Ada Foto</h3>
+        <p class="text-mauve text-sm mb-4">Folder Google Drive ini belum memiliki file foto atau sedang diproses.</p>
+        <button onclick="exitGallery()" class="px-5 py-2.5 rounded-full bg-pink-500 text-white font-medium text-sm">
+          Kembali ke Layar Utama
+        </button>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- FLOATING BOTTOM BAR (BAR AKSI MELAYANG) -->
+  <!-- ========================================== -->
+  <div id="floatingActionBar" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 transition-all duration-500 transform translate-y-32 opacity-0 pointer-events-none w-[92%] max-w-2xl">
+    <div class="glass-coquette border border-pink-300/80 rounded-full px-5 sm:px-7 py-3.5 shadow-2xl shadow-pink-400/30 flex items-center justify-between gap-3 pointer-events-auto">
+      
+      <!-- Kiri: Jumlah Terpilih -->
+      <div class="flex items-center gap-2.5 sm:gap-3">
+        <div class="w-9 h-9 rounded-full bg-pink-500 flex items-center justify-center text-white shadow-md shadow-pink-500/40">
+          <i data-lucide="heart" class="w-4 h-4 fill-white"></i>
+        </div>
+        <div>
+          <span class="text-xs sm:text-sm font-bold text-rosewood flex items-center gap-1">
+            <span id="floatingSelectedCount">0</span> Foto Terpilih
+          </span>
+          <p class="text-[10px] sm:text-xs text-mauve hidden sm:block">Siap diunduh atau dikirim</p>
+        </div>
+      </div>
+
+      <!-- Kanan: Tombol Aksi -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Tombol Unduh ZIP -->
+        <button id="btnDownloadZip" onclick="downloadSelectedAsZip()" class="px-3.5 sm:px-5 py-2.5 rounded-full bg-white hover:bg-pink-50 border border-pink-200 text-rosewood hover:text-pink-600 text-xs sm:text-sm font-semibold shadow-sm transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer">
+          <i data-lucide="archive" class="w-4 h-4 text-pink-500"></i>
+          <span>Unduh ZIP</span>
+        </button>
+
+        <!-- Tombol Kirim Pilihan ke Admin -->
+        <button id="btnSubmitSelection" onclick="submitClientSelection()" class="px-4 sm:px-6 py-2.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white text-xs sm:text-sm font-bold shadow-md shadow-pink-500/30 hover:shadow-pink-500/50 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer">
+          <i data-lucide="send" class="w-4 h-4"></i>
+          <span>Kirim ke Admin</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL 1: LOGIN ADMIN (POPOVER ELEGAN) -->
+  <!-- ========================================== -->
+  <div id="adminLoginModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rosewood/40 backdrop-blur-sm hidden transition-opacity">
+    <div class="glass-coquette border border-pink-200 rounded-3xl p-8 max-w-sm w-full shadow-2xl shadow-pink-300/50 relative animate-fadeIn">
+      <!-- Tombol Tutup -->
+      <button onclick="closeAdminLoginModal()" class="absolute top-5 right-5 text-mauve hover:text-rosewood p-1 rounded-full hover:bg-pink-100/60 transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <!-- Ikon Gembok -->
+      <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center text-white shadow-lg shadow-pink-300/50">
+        <i data-lucide="lock" class="w-7 h-7"></i>
+      </div>
+
+      <h3 class="font-serif text-2xl font-bold text-center text-rosewood mb-1">Masuk Admin</h3>
+      <p class="text-center text-mauve text-xs mb-6">Kelola sesi foto pelanggan & folder Google Drive</p>
+
+      <form id="adminLoginForm" onsubmit="event.preventDefault(); processAdminLogin();" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-rosewood mb-1.5">Username Admin</label>
+          <div class="relative">
+            <i data-lucide="user" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3.5"></i>
+            <input type="text" id="adminUsername" value="admin" required class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-pink-200 bg-white text-sm text-rosewood focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none transition-all" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-rosewood mb-1.5">Password Admin</label>
+          <div class="relative">
+            <i data-lucide="key-round" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3.5"></i>
+            <input type="password" id="adminPassword" value="admin123" required class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-pink-200 bg-white text-sm text-rosewood focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none transition-all" />
+          </div>
+        </div>
+
+        <!-- Petunjuk Kredensial Demo -->
+        <div class="p-2.5 rounded-xl bg-pink-50/80 border border-pink-200 text-[11px] text-mauve flex items-center gap-2">
+          <i data-lucide="info" class="w-4 h-4 text-pink-500 shrink-0"></i>
+          <span>Default Demo: <strong>admin</strong> / <strong>admin123</strong></span>
+        </div>
+
+        <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-semibold text-sm shadow-md shadow-pink-500/30 transition-all flex items-center justify-center gap-2">
+          <span>Masuk Dashboard</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL 2: LIGHTBOX ZOOM FOTO -->
+  <!-- ========================================== -->
+  <div id="lightboxModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <!-- Tombol Tutup -->
+    <button onclick="closeLightbox()" class="absolute top-5 right-5 text-white/80 hover:text-white p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all z-20">
+      <i data-lucide="x" class="w-6 h-6"></i>
+    </button>
+
+    <!-- Tombol Navigasi Prev/Next -->
+    <button onclick="prevLightboxImage()" class="absolute left-4 sm:left-8 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all z-20">
+      <i data-lucide="chevron-left" class="w-6 h-6"></i>
+    </button>
+    <button onclick="nextLightboxImage()" class="absolute right-4 sm:right-8 top-1/2 -translate-y-1/2 text-white/80 hover:text-white p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all z-20">
+      <i data-lucide="chevron-right" class="w-6 h-6"></i>
+    </button>
+
+    <!-- Kontainer Gambar & Detail -->
+    <div class="max-w-4xl max-h-[85vh] flex flex-col items-center">
+      <img id="lightboxImage" src="" alt="Detail Foto" class="max-h-[70vh] max-w-full rounded-2xl object-contain shadow-2xl border border-white/20 mb-4" />
+      
+      <div class="flex flex-wrap items-center justify-between w-full max-w-md gap-4 px-4 py-3 rounded-2xl bg-white/10 backdrop-blur-md text-white text-sm">
+        <span id="lightboxFilename" class="font-mono text-xs sm:text-sm font-semibold tracking-wider">IMG_8801.JPG</span>
+        <div class="flex items-center gap-2">
+          <!-- Tombol Pilih di Lightbox -->
+          <button id="lightboxSelectBtn" onclick="toggleLightboxSelect()" class="px-3.5 py-1.5 rounded-full bg-pink-500 text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-pink-600 transition-colors">
+            <i data-lucide="heart" class="w-3.5 h-3.5"></i>
+            <span id="lightboxSelectText">Pilih Foto</span>
+          </button>
+          <!-- Tombol Unduh Satuan -->
+          <a id="lightboxDownloadBtn" href="" download target="_blank" class="p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors" title="Unduh Foto Ini">
+            <i data-lucide="download" class="w-4 h-4"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL 3: STATUS DOWNLOAD ZIP & PROGRESS -->
+  <!-- ========================================== -->
+  <div id="zipProgressModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rosewood/50 backdrop-blur-sm hidden">
+    <div class="glass-coquette border border-pink-200 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+      <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-pink-100 flex items-center justify-center text-pink-500 animate-pulse-soft">
+        <i data-lucide="archive" class="w-8 h-8"></i>
+      </div>
+      <h4 class="font-serif text-xl font-bold text-rosewood mb-1">Menyiapkan Foto</h4>
+      <p id="zipProgressMessage" class="text-mauve text-xs mb-6">Sedang mengemas foto terpilih ke file .ZIP...</p>
+
+      <!-- Progress Bar -->
+      <div class="w-full bg-pink-100 h-3 rounded-full overflow-hidden mb-3">
+        <div id="zipProgressBar" class="bg-gradient-to-r from-pink-500 to-rose-500 h-full rounded-full transition-all duration-200 w-0"></div>
+      </div>
+      <p id="zipProgressPercent" class="text-xs font-bold text-pink-600">0%</p>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL 4: SUKSES KIRIM PILIHAN KE ADMIN -->
+  <!-- ========================================== -->
+  <div id="submitSuccessModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rosewood/50 backdrop-blur-sm hidden">
+    <div class="glass-coquette border border-pink-200 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative">
+      <button onclick="closeSubmitSuccessModal()" class="absolute top-5 right-5 text-mauve hover:text-rosewood">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="w-16 h-16 mx-auto mb-4 rounded-3xl bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center text-white shadow-lg shadow-pink-300/50 animate-bounce">
+        <i data-lucide="sparkles" class="w-8 h-8"></i>
+      </div>
+
+      <h3 class="font-serif text-2xl font-bold text-rosewood mb-2">Pilihan Foto Tersimpan</h3>
+      <p class="text-mauve text-sm mb-6">
+        Terima kasih! Daftar foto pilihan kamu sudah berhasil disimpan ke sistem PickPict Studio.
+      </p>
+
+      <div class="p-4 rounded-2xl bg-rose-50 border border-pink-200 text-left mb-6">
+        <p class="text-xs font-bold text-rosewood mb-2 flex items-center gap-1.5">
+          <i data-lucide="check" class="w-4 h-4 text-emerald-500"></i>
+          <span>Ringkasan Foto Terpilih (<span id="successTotalCount">0</span> foto):</span>
+        </p>
+        <div id="successFileList" class="text-xs font-mono text-mauve max-h-32 overflow-y-auto space-y-1">
+          <!-- Dynamically inserted filenames -->
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <!-- Tombol Kirim WhatsApp -->
+        <a id="btnSendWhatsappConfirm" href="#" target="_blank" class="w-full py-3.5 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm shadow-md shadow-emerald-500/30 transition-all flex items-center justify-center gap-2">
+          <i data-lucide="message-circle" class="w-5 h-5"></i>
+          <span>Konfirmasi ke WhatsApp Admin</span>
+        </a>
+
+        <button onclick="closeSubmitSuccessModal()" class="w-full py-3 rounded-2xl bg-white hover:bg-pink-50 border border-pink-200 text-rosewood font-semibold text-sm transition-all">
+          Lanjut Lihat Galeri
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER ESTETIK -->
+  <footer class="relative z-10 border-t border-pink-200/60 glass-coquette mt-12 py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-mauve">
+      <div class="flex items-center gap-2">
+        <span class="font-serif font-bold text-rosewood">PickPict</span>
+        <span>•</span>
+        <span>Dibuat untuk klien studio foto</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <button onclick="openAdminLoginModal()" class="hover:text-pink-600 underline transition-colors flex items-center gap-1">
+          <i data-lucide="lock" class="w-3.5 h-3.5 text-pink-500"></i>
+          <span>Akses Admin Studio</span>
+        </button>
+        <span>•</span>
+        <span>Siap deploy ke Vercel</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script src="js/config.js"></script>
+  <script src="js/client.js"></script>
+  <script>
+    // Inisialisasi ikon Lucide
+    document.addEventListener("DOMContentLoaded", () => {
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+    });
+  </script>
+</body>
+</html>
