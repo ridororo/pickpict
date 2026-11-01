@@ -190,28 +190,42 @@ async function loadAndDisplayGallery(session) {
   pinScreen.classList.add("hidden");
   galleryScreen.classList.remove("hidden");
 
+  const clientCode = session.accessCode || session.code || "";
+  const maxQuota = session.maxSelection ?? session.maxSelect ?? 0;
+
   // Update Teks Header Galeri
-  document.getElementById("clientGreeting").textContent = `Halo, ${session.clientName}`;
-  document.getElementById("currentClientCode").textContent = session.code;
+  document.getElementById("clientGreeting").textContent = `Halo, ${session.clientName || "Pelanggan"}`;
+  document.getElementById("currentClientCode").textContent = clientCode;
   document.getElementById("sessionNotes").textContent = session.notes || "Silakan pilih foto terbaikmu.";
   
   const statusBadge = document.getElementById("sessionStatusBadge");
   if (statusBadge) {
-    statusBadge.textContent = session.gdriveUrl ? "Terhubung ke Google Drive" : "Galeri Aktif";
+    statusBadge.textContent = session.folderId ? "Terhubung ke Google Drive" : "Galeri Aktif";
   }
 
-  // Load status pilihan sebelumnya
-  selectedPhotoNames = new Set(session.selectedPhotos || []);
+  // Load status pilihan sebelumnya (selectedFiles / selectedPhotos)
+  const prevSelected = session.selectedFiles || session.selectedPhotos || [];
+  selectedPhotoNames = new Set(prevSelected);
 
   // Update kuota tampilan
   updateQuotaDisplay();
 
-  // Ambil data foto (API atau fallback foto demo resolusi tinggi)
-  if (session.files && Array.isArray(session.files) && session.files.length > 0) {
-    currentPhotos = session.files;
-  } else {
-    currentPhotos = await fetchFolderPhotos(session.folderId, session.gdriveUrl);
+  // Tampilkan indikator loading galeri foto dinamis
+  const grid = document.getElementById("photoGrid");
+  const emptyState = document.getElementById("emptyPhotosState");
+  if (grid) {
+    grid.innerHTML = `
+      <div class="col-span-full py-16 text-center">
+        <div class="w-12 h-12 border-4 border-pink-300 border-t-pink-500 rounded-full animate-spin mx-auto mb-4"></div>
+        <p class="text-rosewood font-serif text-lg font-bold">Memuat Foto dari Google Drive...</p>
+        <p class="text-mauve text-xs mt-1">Mengambil file foto kualitas tinggi secara langsung</p>
+      </div>
+    `;
   }
+  if (emptyState) emptyState.classList.add("hidden");
+
+  // Ambil data foto dinamis langsung dari Google Drive via folderId (tanpa bergantung pada session.files)
+  currentPhotos = await fetchFolderPhotos(session.folderId, session.gdriveUrl);
 
   renderPhotoGrid(currentPhotos);
   updateFloatingBar();

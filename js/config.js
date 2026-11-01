@@ -32,8 +32,7 @@ const DEFAULT_INITIAL_SESSIONS = [
     createdAtFormatted: "2026-11-01 09:30",
     selectedFiles: [],
     selectedPhotos: [],
-    status: "active",
-    files: []
+    status: "active"
   }
 ];
 
@@ -292,6 +291,9 @@ class PickPictDatabase {
     newSession.maxSelection = newSession.maxSelect;
     newSession.selectedFiles = newSession.selectedFiles || newSession.selectedPhotos || [];
     newSession.selectedPhotos = newSession.selectedFiles;
+
+    // Pastikan tidak ada array foto mentah yang terkirim ke Firestore (mencegah batas 1 MiB)
+    delete newSession.files;
 
     // 1. Simpan ke local cache
     this.updateLocalSessionCache(newSession);

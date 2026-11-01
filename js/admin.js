@@ -323,15 +323,7 @@ async function handleCreateSession() {
   const now = new Date();
   const dateFormatted = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  // Ambil daftar foto dari Google Drive
-  let photos = [];
-  try {
-    photos = await fetchFolderPhotos(folderId, gdriveUrl);
-  } catch (e) {
-    photos = [];
-  }
-
-  // Schema multi-tenancy resmi sesuai instruksi
+  // Schema multi-tenancy ramping (HANYA metadata esensial, tanpa array foto mentah!)
   const sessionData = {
     adminId: currentAdminUser.uid,
     adminEmail: currentAdminUser.email,
@@ -341,11 +333,10 @@ async function handleCreateSession() {
     gdriveUrl: gdriveUrl,
     folderId: folderId,
     maxSelection: maxSelect,
-    maxSelect: maxSelect,
+    maxSelect: maxSelect, // kompatibilitas
     notes: notes || "Sesi Foto PickPict Studio",
     selectedFiles: [],
-    selectedPhotos: [],
-    files: photos,
+    selectedPhotos: [], // kompatibilitas
     createdAt: typeof firebase !== "undefined" && firebase.firestore && firebase.firestore.FieldValue
       ? firebase.firestore.FieldValue.serverTimestamp()
       : now.toISOString(),
@@ -353,35 +344,40 @@ async function handleCreateSession() {
     status: "active"
   };
 
-  // Simpan ke Firestore & Local Cache
-  await window.PickPictDB.saveSession(sessionData);
+  try {
+    // Simpan ke Firestore & Local Cache
+    await window.PickPictDB.saveSession(sessionData);
 
-  // Reset form input
-  nameInput.value = "";
-  urlInput.value = "";
-  maxInput.value = "";
-  notesInput.value = "";
+    // Reset form input
+    nameInput.value = "";
+    urlInput.value = "";
+    maxInput.value = "";
+    notesInput.value = "";
 
-  if (submitBtn) {
-    submitBtn.disabled = false;
-    submitBtn.classList.remove("opacity-75");
+    // Refresh tampilan dashboard
+    loadDashboardData();
+
+    // Confetti selebrasi
+    if (typeof confetti === "function") {
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#EC4899', '#F43F5E', '#FED2E2', '#FFF5F8']
+      });
+    }
+
+    // Tampilkan Pop-up Sukses dengan kode besar
+    showCodeSuccessModal(sessionData);
+  } catch (err) {
+    console.error("Gagal membuat sesi:", err);
+    showToast("Gagal membuat sesi: " + (err.message || "Terjadi kesalahan"), "error");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove("opacity-75");
+    }
   }
-
-  // Refresh tampilan dashboard
-  loadDashboardData();
-
-  // Confetti selebrasi
-  if (typeof confetti === "function") {
-    confetti({
-      particleCount: 120,
-      spread: 80,
-      origin: { y: 0.6 },
-      colors: ['#EC4899', '#F43F5E', '#FED2E2', '#FFF5F8']
-    });
-  }
-
-  // Tampilkan Pop-up Sukses dengan kode besar
-  showCodeSuccessModal(sessionData);
 }
 
 // ==========================================
@@ -605,7 +601,7 @@ async function confirmDeleteSession(code) {
 }
 
 // ==========================================
-// 8. MODAL DETAIL FOTO PILIHAN PELANGGAN
+// 8. MODAL DETAIL FOTO PILIHAN PELANGGAN (FETCH DINAMIS GDRIVE)
 // ==========================================
 async function openSelectionDetailModal(code) {
   let session = window.PickPictDB.getSessionByCodeSync(code);
@@ -639,28 +635,85 @@ async function openSelectionDetailModal(code) {
       </div>
     `;
   } else {
-    listContainer.innerHTML = selectedList.map((filename, idx) => `
-      <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-pink-100 hover:border-pink-300 transition-colors">
-        <div class="flex items-center gap-2.5">
-          <span class="w-6 h-6 rounded-lg bg-pink-100 text-pink-600 text-xs font-bold flex items-center justify-center shrink-0">
-            ${idx + 1}
-          </span>
-          <span class="font-mono text-xs sm:text-sm font-bold text-rosewood">${filename}</span>
-        </div>
-        <button
-          onclick="copyToClipboard('${filename}', 'Nama file ${filename} disalin!')"
-          class="text-mauve hover:text-pink-600 p-1 transition-colors"
-          title="Salin nama file"
-        >
-          <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-        </button>
-      </div>
-    `).join("");
+    // Tampilkan daftar file awal
+    renderDetailSelectedFiles(selectedList, []);
+
+    // Panggil API dinamis menggunakan folderId untuk mengambil thumbnail & file Google Drive
+    if (session.folderId) {
+      fetchFolderPhotos(session.folderId, session.gdriveUrl).then(drivePhotos => {
+        if (currentViewingSelectionSession && (currentViewingSelectionSession.accessCode || currentViewingSelectionSession.code) === displayCode) {
+          renderDetailSelectedFiles(selectedList, drivePhotos);
+        }
+      }).catch(err => {
+        console.warn("Gagal mengambil foto drive untuk rincian sesi:", err);
+      });
+    }
   }
 
   modal.classList.remove("hidden");
   if (window.lucide) {
     lucide.createIcons({ root: modal });
+  }
+}
+
+function renderDetailSelectedFiles(selectedList, drivePhotos = []) {
+  const listContainer = document.getElementById("detailFileListContainer");
+  if (!listContainer) return;
+
+  const photoMap = new Map();
+  if (Array.isArray(drivePhotos)) {
+    drivePhotos.forEach(p => photoMap.set(p.name, p));
+  }
+
+  listContainer.innerHTML = selectedList.map((filename, idx) => {
+    const photo = photoMap.get(filename);
+    const thumbUrl = photo ? (photo.gridUrl || photo.thumbnailUrl) : null;
+    const downloadUrl = photo ? (photo.downloadUrl || photo.originalDownloadUrl) : null;
+
+    return `
+      <div class="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-white border border-pink-100 hover:border-pink-300 transition-colors gap-3">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="w-6 h-6 rounded-lg bg-pink-100 text-pink-600 text-xs font-bold flex items-center justify-center shrink-0">
+            ${idx + 1}
+          </span>
+          ${thumbUrl ? `
+            <img src="${thumbUrl}" alt="${filename}" class="w-10 h-10 rounded-lg object-cover border border-pink-200 shrink-0 bg-rose-50" loading="lazy" />
+          ` : `
+            <div class="w-10 h-10 rounded-lg bg-rose-50 border border-pink-200 flex items-center justify-center text-pink-400 shrink-0">
+              <i data-lucide="image" class="w-5 h-5"></i>
+            </div>
+          `}
+          <div class="min-w-0">
+            <span class="font-mono text-xs sm:text-sm font-bold text-rosewood truncate block">${filename}</span>
+            ${photo && photo.size ? `<span class="text-[10px] text-mauve">${photo.size}</span>` : ""}
+          </div>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+          ${downloadUrl ? `
+            <a
+              href="${downloadUrl}"
+              download="${filename}"
+              target="_blank"
+              class="text-mauve hover:text-pink-600 p-1.5 rounded-lg hover:bg-pink-50 transition-colors"
+              title="Unduh resolusi asli"
+            >
+              <i data-lucide="download" class="w-4 h-4"></i>
+            </a>
+          ` : ""}
+          <button
+            onclick="copyToClipboard('${filename}', 'Nama file ${filename} disalin!')"
+            class="text-mauve hover:text-pink-600 p-1.5 rounded-lg hover:bg-pink-50 transition-colors"
+            title="Salin nama file"
+          >
+            <i data-lucide="copy" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  if (window.lucide) {
+    lucide.createIcons({ root: listContainer });
   }
 }
 
