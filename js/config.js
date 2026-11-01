@@ -1,9 +1,9 @@
 /**
  * PickPict - Konfigurasi & Penyimpanan Data
- * Menggunakan Google Drive API v3 resmi & Firebase Firestore Cloud Database
+ * Menggunakan Google Drive API v3, Firebase Authentication, & Firestore Cloud Database
  */
 
-// 1. KONFIGURASI API
+// 1. KONFIGURASI API RESMI
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDoqhl1cSHCPNZ5tWkXUP_Aa07l8WVptwc",
   authDomain: "pickpict.firebaseapp.com",
@@ -17,25 +17,22 @@ const FIREBASE_CONFIG = {
 // Kosongkan untuk keamanan GitHub publik. Kunci asli akan dibaca serverless via process.env.GDRIVE_API_KEY di Vercel
 const GDRIVE_API_KEY = "";
 
-// Kredensial default untuk demo Admin
-const ADMIN_CREDENTIALS = {
-  username: "admin",
-  password: "admin123"
-};
-
-// 2. DATA SESI AWAL (Tanpa foto demo mock)
+// 2. DATA SESI AWAL (Untuk demo tamu & pengujian)
 const DEFAULT_INITIAL_SESSIONS = [
   {
     id: "session-1234",
+    accessCode: "1234",
     code: "1234",
     clientName: "Sesi Photobox Nabila & Sahabat",
     gdriveUrl: "https://drive.google.com/drive/folders/1Nabila-Bestie-Photobox-Demo-2026",
     folderId: "1Nabila-Bestie-Photobox-Demo-2026",
+    maxSelection: 10,
     maxSelect: 10,
     notes: "Photobox Studio - 10 Foto Pilihan",
-    createdAt: "2026-11-01 09:30",
+    createdAtFormatted: "2026-11-01 09:30",
+    selectedFiles: [],
     selectedPhotos: [],
-    status: "Sedang Memilih",
+    status: "active",
     files: []
   }
 ];
@@ -46,9 +43,10 @@ const STORAGE_KEYS = {
   ACTIVE_CLIENT_CODE: "pickpict_active_client_code"
 };
 
-// 3. INISIALISASI FIREBASE SDK (COMPAT)
+// 3. INISIALISASI FIREBASE SDK (AUTH & FIRESTORE)
 let firebaseApp = null;
 let firestoreDb = null;
+let firebaseAuth = null;
 
 try {
   if (typeof firebase !== "undefined" && FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey) {
@@ -60,12 +58,15 @@ try {
     if (typeof firebase.firestore === "function") {
       firestoreDb = firebase.firestore();
     }
+    if (typeof firebase.auth === "function") {
+      firebaseAuth = firebase.auth();
+    }
   }
 } catch (err) {
   console.warn("Inisialisasi Firebase gagal, sistem otomatis beralih ke mode offline/LocalStorage:", err);
 }
 
-// 4. DATABASE UTILITIES (HYBRID: FIRESTORE CLOUD + LOCALSTORAGE FALLBACK)
+// 4. DATABASE UTILITIES (MULTI-TENANCY CLOUD FIRESTORE + LOCALSTORAGE FALLBACK)
 class PickPictDatabase {
   constructor() {
     this.cachedSessions = [];
@@ -91,30 +92,11 @@ class PickPictDatabase {
     } else {
       try {
         const parsed = JSON.parse(existing);
-        let updated = false;
-        // Bersihkan foto demo lama jika sebelumnya tersimpan
-        parsed.forEach(s => {
-          if (s.files && s.files.some(f => f.url && f.url.includes("unsplash.com"))) {
-            s.files = [];
-            updated = true;
-          }
-        });
         this.cachedSessions = parsed;
-        if (updated) {
-          this.saveLocalCache(parsed);
-        }
       } catch (e) {
         this.cachedSessions = [...DEFAULT_INITIAL_SESSIONS];
         this.saveLocalCache(this.cachedSessions);
       }
-    }
-
-    // 2. Sinkronisasi latar belakang dengan Firestore jika tersedia
-    const db = this.getDb();
-    if (db) {
-      this.syncWithFirestore().catch(err => {
-        console.warn("Sinkronisasi Firestore latar belakang tertunda:", err);
-      });
     }
   }
 
@@ -127,61 +109,99 @@ class PickPictDatabase {
     }
   }
 
-  // Sinkronisasi data Firestore dengan local cache
-  async syncWithFirestore() {
+  // Mengambil sesi lokal milik admin tertentu
+  getLocalAdminSessions(adminId) {
+    if (!adminId) return [];
+    return this.cachedSessions.filter(s => s.adminId === adminId);
+  }
+
+  // Real-time listener sesi HANYA untuk admin yang sedang login (Multi-tenancy ketat)
+  subscribeAdminSessions(adminId, callback) {
     const db = this.getDb();
-    if (!db) return;
+    if (!db || !adminId) {
+      if (typeof callback === "function") callback(this.getLocalAdminSessions(adminId));
+      return () => {};
+    }
 
     try {
-      const snapshot = await db.collection("sessions").get();
-      if (snapshot.empty) {
-        // Jika Firestore masih kosong, seed sesi awal
-        for (const session of this.cachedSessions) {
-          await db.collection("sessions").doc(session.code.toString()).set(session, { merge: true });
-        }
-      } else {
+      return db
+        .collection("sessions")
+        .where("adminId", "==", adminId)
+        .onSnapshot(
+          snapshot => {
+            const sessions = [];
+            snapshot.forEach(doc => {
+              const data = doc.data();
+              data.id = doc.id;
+              // Map backward-compatible fields
+              data.code = data.accessCode || data.code;
+              data.accessCode = data.code;
+              data.maxSelect = data.maxSelection ?? data.maxSelect ?? 0;
+              data.maxSelection = data.maxSelect;
+              data.selectedPhotos = data.selectedFiles || data.selectedPhotos || [];
+              data.selectedFiles = data.selectedPhotos;
+              sessions.push(data);
+            });
+
+            // Urutkan terbaru di atas
+            sessions.sort((a, b) => {
+              const tA = a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : 0;
+              const tB = b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : 0;
+              if (tA && tB) return tB - tA;
+              return (b.createdAtFormatted || b.createdAt || "").localeCompare(a.createdAtFormatted || a.createdAt || "");
+            });
+
+            this.saveLocalCache(sessions);
+            if (typeof callback === "function") callback(sessions);
+          },
+          error => {
+            console.warn("Firestore snapshot listener error, menggunakan cache lokal:", error);
+            if (typeof callback === "function") callback(this.getLocalAdminSessions(adminId));
+          }
+        );
+    } catch (err) {
+      console.warn("Gagal mengaktifkan onSnapshot admin:", err);
+      if (typeof callback === "function") callback(this.getLocalAdminSessions(adminId));
+      return () => {};
+    }
+  }
+
+  // Mengambil sesi milik admin secara asinkron
+  async getAdminSessionsAsync(adminId) {
+    const db = this.getDb();
+    if (db && adminId) {
+      try {
+        const snapshot = await db.collection("sessions").where("adminId", "==", adminId).get();
         const cloudSessions = [];
         snapshot.forEach(doc => {
-          cloudSessions.push(doc.data());
+          const data = doc.data();
+          data.id = doc.id;
+          data.code = data.accessCode || data.code;
+          data.accessCode = data.code;
+          data.maxSelect = data.maxSelection ?? data.maxSelect ?? 0;
+          data.maxSelection = data.maxSelect;
+          data.selectedPhotos = data.selectedFiles || data.selectedPhotos || [];
+          data.selectedFiles = data.selectedPhotos;
+          cloudSessions.push(data);
         });
-        cloudSessions.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+
+        cloudSessions.sort((a, b) => {
+          const tA = a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : 0;
+          const tB = b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : 0;
+          if (tA && tB) return tB - tA;
+          return (b.createdAtFormatted || b.createdAt || "").localeCompare(a.createdAtFormatted || a.createdAt || "");
+        });
+
         this.saveLocalCache(cloudSessions);
+        return cloudSessions;
+      } catch (err) {
+        console.warn("Firestore getAdminSessionsAsync error, fallback ke local:", err);
       }
-    } catch (err) {
-      console.warn("Gagal sinkronisasi data dari Firestore:", err);
     }
+    return this.getLocalAdminSessions(adminId);
   }
 
-  // Realtime subscription (untuk Admin Dashboard Live Update)
-  subscribeSessions(callback) {
-    const db = this.getDb();
-    if (!db) {
-      if (typeof callback === "function") callback(this.getAllSessions());
-      return () => {};
-    }
-
-    try {
-      return db.collection("sessions").onSnapshot(
-        snapshot => {
-          const sessions = [];
-          snapshot.forEach(doc => sessions.push(doc.data()));
-          sessions.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-          this.saveLocalCache(sessions);
-          if (typeof callback === "function") callback(sessions);
-        },
-        error => {
-          console.warn("Firestore snapshot listener error, menggunakan cache lokal:", error);
-          if (typeof callback === "function") callback(this.getAllSessions());
-        }
-      );
-    } catch (err) {
-      console.warn("Gagal mengaktifkan onSnapshot:", err);
-      if (typeof callback === "function") callback(this.getAllSessions());
-      return () => {};
-    }
-  }
-
-  // Mengambil semua sesi (Sinkron dari cache lokal untuk rendering cepat)
+  // Mengambil semua sesi di cache lokal
   getAllSessions() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.SESSIONS);
@@ -191,39 +211,47 @@ class PickPictDatabase {
     }
   }
 
-  // Mengambil semua sesi secara asinkron dari Firestore
-  async getAllSessionsAsync() {
-    const db = this.getDb();
-    if (db) {
-      try {
-        const snapshot = await db.collection("sessions").get();
-        if (!snapshot.empty) {
-          const cloudSessions = [];
-          snapshot.forEach(doc => cloudSessions.push(doc.data()));
-          cloudSessions.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-          this.saveLocalCache(cloudSessions);
-          return cloudSessions;
-        }
-      } catch (err) {
-        console.warn("Firestore getAllSessionsAsync error, fallback ke local:", err);
-      }
-    }
-    return this.getAllSessions();
-  }
-
-  // Mengambil sesi berdasarkan kode 4 digit (Asinkron: Cek Firestore + Fallback Cache)
+  // SISI KLIEN: Cari sesi berdasarkan 4 digit accessCode (Firestore Query + Local Fallback)
   async getSessionByCode(code) {
     if (!code) return null;
     const cleanCode = code.toString().trim();
 
-    // 1. Cek Firestore langsung untuk memastikan sinkron antar-perangkat (HP/Laptop)
     const db = this.getDb();
     if (db) {
       try {
-        const docRef = db.collection("sessions").doc(cleanCode);
-        const docSnap = await docRef.get();
-        if (docSnap.exists) {
-          const data = docSnap.data();
+        // 1. Query berdasarkan accessCode
+        let snapshot = await db.collection("sessions").where("accessCode", "==", cleanCode).limit(1).get();
+
+        // 2. Jika kosong, query berdasarkan code (kompatibilitas)
+        if (snapshot.empty) {
+          snapshot = await db.collection("sessions").where("code", "==", cleanCode).limit(1).get();
+        }
+
+        // 3. Jika masih kosong, coba get doc langsung dengan ID = cleanCode
+        if (snapshot.empty) {
+          const directDoc = await db.collection("sessions").doc(cleanCode).get();
+          if (directDoc.exists) {
+            const data = directDoc.data();
+            data.id = directDoc.id;
+            data.code = data.accessCode || data.code;
+            data.accessCode = data.code;
+            data.maxSelect = data.maxSelection ?? data.maxSelect ?? 0;
+            data.maxSelection = data.maxSelect;
+            data.selectedPhotos = data.selectedFiles || data.selectedPhotos || [];
+            data.selectedFiles = data.selectedPhotos;
+            this.updateLocalSessionCache(data);
+            return data;
+          }
+        } else {
+          const doc = snapshot.docs[0];
+          const data = doc.data();
+          data.id = doc.id;
+          data.code = data.accessCode || data.code;
+          data.accessCode = data.code;
+          data.maxSelect = data.maxSelection ?? data.maxSelect ?? 0;
+          data.maxSelection = data.maxSelect;
+          data.selectedPhotos = data.selectedFiles || data.selectedPhotos || [];
+          data.selectedFiles = data.selectedPhotos;
           this.updateLocalSessionCache(data);
           return data;
         }
@@ -232,21 +260,21 @@ class PickPictDatabase {
       }
     }
 
-    // 2. Fallback: cari di cache lokal
+    // Fallback: cari di cache lokal
     return this.getSessionByCodeSync(cleanCode);
   }
 
-  // Mengambil sesi secara sinkron dari cache lokal
   getSessionByCodeSync(code) {
     if (!code) return null;
     const cleanCode = code.toString().trim();
     const sessions = this.getAllSessions();
-    return sessions.find(s => s.code.toString() === cleanCode) || null;
+    return sessions.find(s => (s.accessCode || s.code || "").toString() === cleanCode) || null;
   }
 
   updateLocalSessionCache(sessionData) {
     const sessions = this.getAllSessions();
-    const index = sessions.findIndex(s => s.code.toString() === sessionData.code.toString());
+    const code = (sessionData.accessCode || sessionData.code).toString();
+    const index = sessions.findIndex(s => (s.accessCode || s.code || "").toString() === code);
     if (index >= 0) {
       sessions[index] = { ...sessions[index], ...sessionData };
     } else {
@@ -255,18 +283,26 @@ class PickPictDatabase {
     this.saveLocalCache(sessions);
   }
 
-  // Simpan / Buat Sesi Baru (Simpan ke Firestore Cloud + LocalStorage)
+  // Simpan / Buat Sesi Baru oleh Admin Terautentikasi
   async saveSession(newSession) {
-    // 1. Simpan ke local cache terlebih dahulu untuk responsivitas instan
+    const cleanCode = (newSession.accessCode || newSession.code).toString().trim();
+    newSession.code = cleanCode;
+    newSession.accessCode = cleanCode;
+    newSession.maxSelect = newSession.maxSelection ?? newSession.maxSelect ?? 0;
+    newSession.maxSelection = newSession.maxSelect;
+    newSession.selectedFiles = newSession.selectedFiles || newSession.selectedPhotos || [];
+    newSession.selectedPhotos = newSession.selectedFiles;
+
+    // 1. Simpan ke local cache
     this.updateLocalSessionCache(newSession);
 
-    // 2. Simpan ke Firestore jika aktif
+    // 2. Simpan ke Firestore
     const db = this.getDb();
     if (db) {
       try {
         await db
           .collection("sessions")
-          .doc(newSession.code.toString())
+          .doc(cleanCode)
           .set(newSession, { merge: true });
       } catch (err) {
         console.error("Gagal menyimpan sesi ke Firestore:", err);
@@ -276,13 +312,14 @@ class PickPictDatabase {
     return newSession;
   }
 
-  // Update pilihan foto klien (Simpan ke Firestore Cloud + LocalStorage)
+  // SISI KLIEN: Update pilihan foto pelanggan (Hanya ubah selectedFiles & status)
   async updateClientSelection(code, selectedPhotos) {
     const cleanCode = code.toString().trim();
     const nowFormatted = new Date().toLocaleString("id-ID");
     const status = selectedPhotos.length > 0 ? "Pilihan Disimpan" : "Sedang Memilih";
 
     const updatePayload = {
+      selectedFiles: selectedPhotos,
       selectedPhotos: selectedPhotos,
       status: status,
       lastUpdated: nowFormatted
@@ -290,20 +327,22 @@ class PickPictDatabase {
 
     // 1. Update ke local cache
     const sessions = this.getAllSessions();
-    const target = sessions.find(s => s.code.toString() === cleanCode);
+    const target = sessions.find(s => (s.accessCode || s.code || "").toString() === cleanCode);
     if (target) {
       Object.assign(target, updatePayload);
       this.saveLocalCache(sessions);
     }
 
-    // 2. Update ke Firestore
+    // 2. Update ke Firestore (Hanya mengubah field pilihan tanpa menyentuh adminId)
     const db = this.getDb();
     if (db) {
       try {
-        await db
-          .collection("sessions")
-          .doc(cleanCode)
-          .set(updatePayload, { merge: true });
+        let docId = cleanCode;
+        const snapshot = await db.collection("sessions").where("accessCode", "==", cleanCode).limit(1).get();
+        if (!snapshot.empty) {
+          docId = snapshot.docs[0].id;
+        }
+        await db.collection("sessions").doc(docId).set(updatePayload, { merge: true });
       } catch (err) {
         console.error("Gagal update pilihan foto ke Firestore:", err);
       }
@@ -312,20 +351,30 @@ class PickPictDatabase {
     return target || { code: cleanCode, ...updatePayload };
   }
 
-  // Hapus Sesi (Hapus dari Firestore Cloud + LocalStorage)
-  async deleteSession(code) {
+  // Hapus Sesi oleh Admin Pemilik (Isolasi Keamanan)
+  async deleteSession(code, adminId) {
     const cleanCode = code.toString().trim();
 
     // 1. Hapus dari local cache
     let sessions = this.getAllSessions();
-    sessions = sessions.filter(s => s.code.toString() !== cleanCode);
+    sessions = sessions.filter(s => (s.accessCode || s.code || "").toString() !== cleanCode);
     this.saveLocalCache(sessions);
 
-    // 2. Hapus dari Firestore
+    // 2. Hapus dari Firestore dengan verifikasi adminId
     const db = this.getDb();
     if (db) {
       try {
-        await db.collection("sessions").doc(cleanCode).delete();
+        const docRef = db.collection("sessions").doc(cleanCode);
+        const doc = await docRef.get();
+        if (doc.exists) {
+          const data = doc.data();
+          if (!adminId || data.adminId === adminId) {
+            await docRef.delete();
+          } else {
+            console.warn("Penolakan akses: Bukan pemilik sesi ini.");
+            return false;
+          }
+        }
       } catch (err) {
         console.error("Gagal menghapus sesi dari Firestore:", err);
       }
@@ -334,11 +383,10 @@ class PickPictDatabase {
     return true;
   }
 
-  // Generator Kode Unik 4 Digit
+  // Generator Kode Unik 4 Digit (Tanpa reservasi bypass backdoor 9999)
   generateUniqueCode() {
     const sessions = this.getAllSessions();
-    const existingCodes = new Set(sessions.map(s => s.code.toString()));
-    existingCodes.add("9999"); // Reservasi kode 9999 untuk bypass admin
+    const existingCodes = new Set(sessions.map(s => (s.accessCode || s.code || "").toString()));
 
     let attempts = 0;
     while (attempts < 500) {
@@ -389,7 +437,7 @@ async function fetchFolderPhotos(folderId, gdriveUrl = "") {
       let allRawFiles = [];
       let pageToken = null;
       let pageCount = 0;
-      const maxPages = 50; // Pengaman hingga 50.000 file foto
+      const maxPages = 50;
 
       do {
         let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&orderBy=name&pageSize=1000&key=${GDRIVE_API_KEY}`;
@@ -413,7 +461,6 @@ async function fetchFolderPhotos(folderId, gdriveUrl = "") {
       } while (pageToken && pageCount < maxPages);
 
       if (allRawFiles.length > 0) {
-        // Natural sort agar urutan foto rapi dan berurutan
         allRawFiles.sort((a, b) =>
           (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" })
         );
@@ -450,43 +497,123 @@ async function fetchFolderPhotos(folderId, gdriveUrl = "") {
   return [];
 }
 
-// 7. POP-UP KANAN ATAS DINONAKTIFKAN
+// 7. TOAST NOTIFIKASI
 function showToast(message, type = "info") {
-  // Pop-up di kanan atas dinonaktifkan sesuai permintaan pengguna
   const existingContainer = document.getElementById("pickpict-toast-container");
   if (existingContainer) {
     existingContainer.remove();
   }
 }
 
-// 8. AUTENTIKASI ADMIN
+// 8. SISTEM MULTI-ADMIN RESMI BERBASIS FIREBASE AUTHENTICATION
 const AuthManager = {
-  isLoggedIn() {
-    return (
-      sessionStorage.getItem(STORAGE_KEYS.ADMIN_AUTH) === "true" ||
-      localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH) === "true"
-    );
-  },
-  login(username, password, remember = true) {
-    if (
-      username.trim() === ADMIN_CREDENTIALS.username &&
-      password.trim() === ADMIN_CREDENTIALS.password
-    ) {
-      if (remember) {
-        localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, "true");
-      }
-      sessionStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, "true");
-      return true;
+  getAuth() {
+    if (!firebaseAuth && typeof firebase !== "undefined" && typeof firebase.auth === "function") {
+      try {
+        firebaseAuth = firebase.auth();
+      } catch (e) {}
     }
-    return false;
+    return firebaseAuth;
   },
-  logout() {
+
+  getCurrentUser() {
+    const auth = this.getAuth();
+    return auth ? auth.currentUser : null;
+  },
+
+  async getCurrentAdminProfile() {
+    const user = this.getCurrentUser();
+    if (!user) return null;
+    if (firestoreDb) {
+      try {
+        const doc = await firestoreDb.collection("admins").doc(user.uid).get();
+        if (doc.exists) {
+          return { uid: user.uid, email: user.email, ...doc.data() };
+        }
+      } catch (e) {
+        console.warn("Gagal mengambil profil admin:", e);
+      }
+    }
+    return {
+      uid: user.uid,
+      email: user.email,
+      name: user.displayName || (user.email ? user.email.split("@")[0] : "Studio Admin")
+    };
+  },
+
+  onAuthStateChanged(callback) {
+    const auth = this.getAuth();
+    if (auth) {
+      return auth.onAuthStateChanged(callback);
+    } else {
+      if (typeof callback === "function") callback(null);
+      return () => {};
+    }
+  },
+
+  async login(email, password) {
+    const auth = this.getAuth();
+    if (!auth) {
+      throw new Error("Layanan Firebase Authentication tidak terdeteksi.");
+    }
+    const cred = await auth.signInWithEmailAndPassword(email.trim(), password);
+    sessionStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, "true");
+    return cred.user;
+  },
+
+  async register(name, email, password) {
+    const auth = this.getAuth();
+    if (!auth) {
+      throw new Error("Layanan Firebase Authentication tidak terdeteksi.");
+    }
+    if (!name || name.trim().length === 0) {
+      throw new Error("Nama Fotografer / Studio wajib diisi.");
+    }
+    if (!password || password.length < 6) {
+      throw new Error("Password minimal harus 6 karakter.");
+    }
+
+    const cred = await auth.createUserWithEmailAndPassword(email.trim(), password);
+    const user = cred.user;
+
+    // Simpan display name di Firebase Auth profile
+    try {
+      await user.updateProfile({ displayName: name.trim() });
+    } catch (e) {}
+
+    // Simpan data profil ke Firestore pada koleksi admins/{uid}
+    if (firestoreDb) {
+      try {
+        const createdAt = typeof firebase !== "undefined" && firebase.firestore && firebase.firestore.FieldValue
+          ? firebase.firestore.FieldValue.serverTimestamp()
+          : new Date().toISOString();
+
+        await firestoreDb.collection("admins").doc(user.uid).set({
+          uid: user.uid,
+          name: name.trim(),
+          email: user.email,
+          createdAt: createdAt
+        });
+      } catch (e) {
+        console.warn("Gagal menyimpan profil admin ke Firestore:", e);
+      }
+    }
+
+    sessionStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, "true");
+    return user;
+  },
+
+  async logout() {
+    const auth = this.getAuth();
+    if (auth) {
+      await auth.signOut();
+    }
     sessionStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH);
     localStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH);
   }
 };
 
-// Inisialisasi instance database global
+// Inisialisasi instance database & auth global
 const db = new PickPictDatabase();
 window.PickPictDB = db;
 window.PickPictAuth = AuthManager;

@@ -80,8 +80,9 @@
   <!-- Canvas Confetti CDN -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 
-  <!-- Firebase App & Firestore SDK (v10 compat) -->
+  <!-- Firebase App, Auth, & Firestore SDK (v10 compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
   <style>
@@ -234,10 +235,7 @@
                 <p class="mb-2">Gunakan kode untuk langsung membuka galeri:</p>
                 <div class="flex flex-wrap gap-2">
                   <button type="button" onclick="quickFillPin('1234')" class="px-2.5 py-1 rounded-lg bg-white border border-pink-300 text-pink-600 hover:bg-pink-50 font-semibold shadow-xs transition-colors flex items-center gap-1">
-                    <span>Kode: <strong>1234</strong> (Nabila)</span>
-                  </button>
-                  <button type="button" onclick="quickFillPin('9999')" class="px-2.5 py-1 rounded-lg bg-white border border-pink-300 text-pink-600 hover:bg-pink-50 font-semibold shadow-xs transition-colors flex items-center gap-1">
-                    <span>Kode: <strong>9999</strong> (Admin)</span>
+                    <span>Kode Contoh: <strong>1234</strong> (Nabila)</span>
                   </button>
                 </div>
               </div>
@@ -377,34 +375,87 @@
         <i data-lucide="lock" class="w-7 h-7"></i>
       </div>
 
-      <h3 class="font-serif text-2xl font-bold text-center text-rosewood mb-1">Masuk Admin</h3>
-      <p class="text-center text-mauve text-xs mb-6">Kelola sesi foto pelanggan & folder Google Drive</p>
+      <h3 class="font-serif text-2xl font-bold text-center text-rosewood mb-1">Akses Admin Studio</h3>
+      <p class="text-center text-mauve text-xs mb-5">Kelola link Google Drive & sesi pemilihan foto pelanggan</p>
 
-      <form id="adminLoginForm" onsubmit="event.preventDefault(); processAdminLogin();" class="space-y-4">
+      <!-- TAB TOGGLE: LOGIN / REGISTER -->
+      <div class="flex p-1 rounded-xl bg-pink-100/80 mb-5 border border-pink-200">
+        <button
+          type="button"
+          id="modalTabLoginBtn"
+          onclick="switchModalAuthTab('login')"
+          class="flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all bg-white text-rosewood shadow-xs"
+        >
+          Masuk Akun
+        </button>
+        <button
+          type="button"
+          id="modalTabRegisterBtn"
+          onclick="switchModalAuthTab('register')"
+          class="flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all text-mauve hover:text-rosewood"
+        >
+          Daftar Studio
+        </button>
+      </div>
+
+      <!-- ERROR MESSAGE BOX -->
+      <div id="modalAuthErrorBox" class="hidden mb-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 text-left flex items-start gap-1.5">
+        <i data-lucide="alert-circle" class="w-4 h-4 text-rose-500 shrink-0 mt-0.5"></i>
+        <span id="modalAuthErrorText">Kesalahan autentikasi.</span>
+      </div>
+
+      <!-- FORM LOGIN -->
+      <form id="modalLoginForm" onsubmit="event.preventDefault(); processAdminLogin();" class="space-y-3.5 text-left">
         <div>
-          <label class="block text-xs font-semibold text-rosewood mb-1.5">Username Admin</label>
+          <label class="block text-xs font-semibold text-rosewood mb-1">Email Studio</label>
           <div class="relative">
-            <i data-lucide="user" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3.5"></i>
-            <input type="text" id="adminUsername" value="admin" required class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-pink-200 bg-white text-sm text-rosewood focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none transition-all" />
+            <i data-lucide="mail" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3"></i>
+            <input type="email" id="modalAdminEmail" required class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-pink-200 bg-white text-xs sm:text-sm text-rosewood focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none transition-all" placeholder="studio@pickpict.com" />
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-rosewood mb-1.5">Password Admin</label>
+          <label class="block text-xs font-semibold text-rosewood mb-1">Password</label>
           <div class="relative">
-            <i data-lucide="key-round" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3.5"></i>
-            <input type="password" id="adminPassword" value="admin123" required class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-pink-200 bg-white text-sm text-rosewood focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none transition-all" />
+            <i data-lucide="key-round" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3"></i>
+            <input type="password" id="modalAdminPassword" required class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-pink-200 bg-white text-xs sm:text-sm text-rosewood focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none transition-all" placeholder="Masukkan password" />
           </div>
         </div>
 
-        <!-- Petunjuk Kredensial Demo -->
-        <div class="p-2.5 rounded-xl bg-pink-50/80 border border-pink-200 text-[11px] text-mauve flex items-center gap-2">
-          <i data-lucide="info" class="w-4 h-4 text-pink-500 shrink-0"></i>
-          <span>Default Demo: <strong>admin</strong> / <strong>admin123</strong></span>
-        </div>
-
-        <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-semibold text-sm shadow-md shadow-pink-500/30 transition-all flex items-center justify-center gap-2">
+        <button type="submit" id="btnModalLoginSubmit" class="w-full py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-semibold text-sm shadow-md shadow-pink-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer">
           <span>Masuk Dashboard</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </form>
+
+      <!-- FORM REGISTER -->
+      <form id="modalRegisterForm" onsubmit="event.preventDefault(); processAdminRegister();" class="space-y-3.5 text-left hidden">
+        <div>
+          <label class="block text-xs font-semibold text-rosewood mb-1">Nama Fotografer / Studio</label>
+          <div class="relative">
+            <i data-lucide="camera" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3"></i>
+            <input type="text" id="modalRegisterName" required class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-pink-200 bg-white text-xs sm:text-sm text-rosewood focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none transition-all" placeholder="Nama Studio kamu" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-rosewood mb-1">Email Studio</label>
+          <div class="relative">
+            <i data-lucide="mail" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3"></i>
+            <input type="email" id="modalRegisterEmail" required class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-pink-200 bg-white text-xs sm:text-sm text-rosewood focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none transition-all" placeholder="studio@pickpict.com" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-rosewood mb-1">Password (Min. 6 Karakter)</label>
+          <div class="relative">
+            <i data-lucide="key-round" class="w-4 h-4 text-pink-400 absolute left-3.5 top-3"></i>
+            <input type="password" id="modalRegisterPassword" minlength="6" required class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-pink-200 bg-white text-xs sm:text-sm text-rosewood focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none transition-all" placeholder="Minimal 6 karakter" />
+          </div>
+        </div>
+
+        <button type="submit" id="btnModalRegisterSubmit" class="w-full py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-semibold text-sm shadow-md shadow-pink-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer">
+          <span>Daftar Akun Studio ✨</span>
           <i data-lucide="arrow-right" class="w-4 h-4"></i>
         </button>
       </form>

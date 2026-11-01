@@ -36,21 +36,12 @@ function setupPinInputs() {
 
       // Cek apakah 4 digit sudah terisi
       const fullCode = inputs.map(i => i.value).join("");
-      
-      // Shortcut Rahasia Admin: Jika 9999 langsung buka Modal Login Admin!
-      if (fullCode === "9999") {
-        inputs.forEach(i => (i.value = ""));
-        inputs[0].focus();
-        openAdminLoginModal();
-        showToast("Jalur Pintas Terdeteksi: Membuka Login Admin", "info");
-        return;
-      }
 
       if (e.target.value && index < inputs.length - 1) {
         inputs[index + 1].focus();
       }
 
-      // Jika 4 digit lengkap dan bukan 9999, otomatis submit
+      // Jika 4 digit lengkap, otomatis submit
       if (fullCode.length === 4) {
         setTimeout(() => submitPinCode(), 150);
       }
@@ -89,14 +80,6 @@ function setupPinInputs() {
         inputs[nextIndex].focus();
 
         const fullCode = inputs.map(i => i.value).join("");
-        if (fullCode === "9999") {
-          inputs.forEach(i => (i.value = ""));
-          inputs[0].focus();
-          openAdminLoginModal();
-          showToast("Jalur Pintas Terdeteksi: Membuka Login Admin", "info");
-          return;
-        }
-
         if (fullCode.length === 4) {
           setTimeout(() => submitPinCode(), 150);
         }
@@ -111,14 +94,6 @@ function quickFillPin(code) {
   chars.forEach((c, idx) => {
     if (inputs[idx]) inputs[idx].value = c;
   });
-
-  if (code === "9999") {
-    inputs.forEach(i => (i.value = ""));
-    inputs[0].focus();
-    openAdminLoginModal();
-    showToast("Jalur Pintas: Membuka Modal Login Admin", "info");
-    return;
-  }
 
   submitPinCode();
 }
@@ -158,11 +133,6 @@ async function submitPinCode() {
 
   if (code.length < 4) {
     showPinError("Mohon masukkan lengkap 4 digit kode foto kamu.");
-    return;
-  }
-
-  if (code === "9999") {
-    openAdminLoginModal();
     return;
   }
 
@@ -795,32 +765,146 @@ function closeSubmitSuccessModal() {
 }
 
 // ==========================================
-// 7. MODAL LOGIN ADMIN DARI HALAMAN PELANGGAN
+// 7. MODAL LOGIN & REGISTER MULTI-ADMIN
 // ==========================================
 function openAdminLoginModal() {
   const modal = document.getElementById("adminLoginModal");
   if (modal) modal.classList.remove("hidden");
-  const userInput = document.getElementById("adminUsername");
-  if (userInput) userInput.focus();
+  hideModalAuthError();
+  const emailInput = document.getElementById("modalAdminEmail");
+  if (emailInput) emailInput.focus();
 }
 
 function closeAdminLoginModal() {
   const modal = document.getElementById("adminLoginModal");
   if (modal) modal.classList.add("hidden");
+  hideModalAuthError();
 }
 
-function processAdminLogin() {
-  const u = document.getElementById("adminUsername").value;
-  const p = document.getElementById("adminPassword").value;
+function switchModalAuthTab(tab) {
+  hideModalAuthError();
+  const tabLoginBtn = document.getElementById("modalTabLoginBtn");
+  const tabRegisterBtn = document.getElementById("modalTabRegisterBtn");
+  const loginForm = document.getElementById("modalLoginForm");
+  const registerForm = document.getElementById("modalRegisterForm");
 
-  const success = window.PickPictAuth.login(u, p);
-  if (success) {
-    showToast("Login Berhasil! Mengalihkan ke Dashboard Admin...", "success");
+  if (tab === "login") {
+    if (tabLoginBtn) tabLoginBtn.className = "flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all bg-white text-rosewood shadow-xs";
+    if (tabRegisterBtn) tabRegisterBtn.className = "flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all text-mauve hover:text-rosewood";
+    if (loginForm) loginForm.classList.remove("hidden");
+    if (registerForm) registerForm.classList.add("hidden");
+  } else {
+    if (tabRegisterBtn) tabRegisterBtn.className = "flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all bg-white text-rosewood shadow-xs";
+    if (tabLoginBtn) tabLoginBtn.className = "flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all text-mauve hover:text-rosewood";
+    if (registerForm) registerForm.classList.remove("hidden");
+    if (loginForm) loginForm.classList.add("hidden");
+  }
+
+  if (window.lucide) {
+    lucide.createIcons();
+  }
+}
+
+function showModalAuthError(msg) {
+  const box = document.getElementById("modalAuthErrorBox");
+  const text = document.getElementById("modalAuthErrorText");
+  if (box && text) {
+    text.textContent = msg;
+    box.classList.remove("hidden");
+  }
+}
+
+function hideModalAuthError() {
+  const box = document.getElementById("modalAuthErrorBox");
+  if (box) box.classList.add("hidden");
+}
+
+async function processAdminLogin() {
+  hideModalAuthError();
+  const emailInput = document.getElementById("modalAdminEmail");
+  const passInput = document.getElementById("modalAdminPassword");
+  const submitBtn = document.getElementById("btnModalLoginSubmit");
+
+  const email = emailInput ? emailInput.value.trim() : "";
+  const pass = passInput ? passInput.value : "";
+
+  if (!email || !pass) {
+    showModalAuthError("Email dan password wajib diisi.");
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.classList.add("opacity-75");
+  }
+
+  try {
+    await window.PickPictAuth.login(email, pass);
+    showToast("Login Berhasil! Mengalihkan ke Dashboard...", "success");
     setTimeout(() => {
       window.location.href = "admin.html";
     }, 600);
-  } else {
-    showToast("Username atau Password salah. Silakan coba lagi.", "error");
+  } catch (err) {
+    console.error("Login modal error:", err);
+    let msg = "Email atau password salah. Silakan coba lagi.";
+    if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
+      msg = "Akun tidak ditemukan atau password salah.";
+    } else if (err.code === "auth/invalid-email") {
+      msg = "Format email tidak valid.";
+    }
+    showModalAuthError(msg);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove("opacity-75");
+    }
+  }
+}
+
+async function processAdminRegister() {
+  hideModalAuthError();
+  const nameInput = document.getElementById("modalRegisterName");
+  const emailInput = document.getElementById("modalRegisterEmail");
+  const passInput = document.getElementById("modalRegisterPassword");
+  const submitBtn = document.getElementById("btnModalRegisterSubmit");
+
+  const name = nameInput ? nameInput.value.trim() : "";
+  const email = emailInput ? emailInput.value.trim() : "";
+  const pass = passInput ? passInput.value : "";
+
+  if (!name || !email || !pass) {
+    showModalAuthError("Semua data pendaftaran wajib diisi.");
+    return;
+  }
+
+  if (pass.length < 6) {
+    showModalAuthError("Password minimal 6 karakter.");
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.classList.add("opacity-75");
+  }
+
+  try {
+    await window.PickPictAuth.register(name, email, pass);
+    showToast("Pendaftaran Berhasil! Mengalihkan...", "success");
+    setTimeout(() => {
+      window.location.href = "admin.html";
+    }, 600);
+  } catch (err) {
+    console.error("Register modal error:", err);
+    let msg = err.message || "Gagal mendaftar.";
+    if (err.code === "auth/email-already-in-use") {
+      msg = "Email sudah terdaftar. Silakan masuk.";
+    }
+    showModalAuthError(msg);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove("opacity-75");
+    }
   }
 }
 
